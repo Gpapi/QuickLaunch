@@ -61,7 +61,10 @@ public partial class App : Application
         services.AddSingleton<FileIndexService>();
 
         services.AddSingleton<ISearchProvider, AppSearchProvider>();
+        services.AddSingleton<ISearchProvider, SettingsSearchProvider>();
         services.AddSingleton<ISearchProvider, FileSearchProvider>();
+        services.AddSingleton(new WebSearchOptions());
+        services.AddSingleton<ISearchProvider, WebSearchProvider>();
         services.AddSingleton<SearchOrchestrator>();
         services.AddSingleton<IconService>();
 

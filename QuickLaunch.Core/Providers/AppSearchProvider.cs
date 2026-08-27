@@ -13,12 +13,6 @@ namespace QuickLaunch.Core.Providers;
 /// </summary>
 public sealed class AppSearchProvider(AppCatalog catalog) : ISearchProvider
 {
-    /// <summary>
-    /// Charged against a match on anything but the display name, so that when a query
-    /// matches one app's title and another's executable name, the title wins.
-    /// </summary>
-    private const int SecondaryTermPenalty = 12;
-
     public string Name => "Applications";
 
     /// <summary>
@@ -44,60 +38,20 @@ public sealed class AppSearchProvider(AppCatalog catalog) : ISearchProvider
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (TryScore(matcher, query.Text, queryMask, entry, out int score, out var highlights))
+            if (TermMatching.TryScore(
+                    matcher,
+                    query.Text,
+                    queryMask,
+                    entry.SearchTerms,
+                    entry.SearchTermMasks,
+                    out int score,
+                    out var highlights))
             {
                 yield return Create(entry, score, highlights);
             }
         }
 
         await Task.CompletedTask;
-    }
-
-    private static bool TryScore(
-        FuzzyMatcher matcher,
-        string queryText,
-        ulong queryMask,
-        AppEntry entry,
-        out int score,
-        out IReadOnlyList<MatchSpan> highlights)
-    {
-        score = FuzzyMatcher.NoMatch;
-        highlights = [];
-
-        bool matched = false;
-
-        for (int i = 0; i < entry.SearchTerms.Count; i++)
-        {
-            if (!matcher.TryMatch(
-                    queryText,
-                    queryMask,
-                    entry.SearchTerms[i],
-                    entry.SearchTermMasks[i],
-                    out int termScore,
-                    out var termHighlights))
-            {
-                continue;
-            }
-
-            if (i > 0)
-            {
-                termScore -= SecondaryTermPenalty;
-            }
-
-            if (!matched || termScore > score)
-            {
-                score = termScore;
-
-                // Highlights only ever describe the display name. A match on the
-                // executable name has no positions in the title to point at, so the row
-                // is left unhighlighted rather than emphasising the wrong characters.
-                highlights = i == 0 ? termHighlights : [];
-            }
-
-            matched = true;
-        }
-
-        return matched;
     }
 
     private static SearchResult Create(AppEntry entry, int score, IReadOnlyList<MatchSpan> highlights) => new()

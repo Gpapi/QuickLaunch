@@ -9,9 +9,11 @@ A Spotlight-style launcher for Windows. Press the hotkey, type a few characters,
 - **Summon from anywhere** — `Alt+Space`, falling back to `Ctrl+Alt+Space` if another app already owns it (PowerToys Run claims `Alt+Space` by default). The launcher tells you which shortcut it got.
 - **Applications** — everything Windows itself lists, packaged and unpackaged, with their real shell icons.
 - **Files and folders** — an in-process index of your profile, scanned in a few milliseconds per keystroke.
+- **Windows Settings** — around eighty pages, findable by the words people actually type: `resolution` finds Display, `wallpaper` finds Background, `uninstall` finds Installed apps.
+- **The web** — a search fallback that is always there, and recognition of an address when you type one.
 - **Launching** — `Enter` or click; the launcher hides first so the new window comes forward cleanly.
 
-Not built yet: Windows Settings results, web/URL fallback, match highlighting, frecency ranking, a settings window, and MSIX packaging.
+Not built yet: match highlighting, frecency ranking, a settings window, and MSIX packaging.
 
 ## Requirements
 
@@ -57,6 +59,8 @@ The suite covers matcher ranking and highlights, the file index and its snapshot
 `QuickLaunch.Core` holds everything that is not a view: matching, ranking, the indexes and the providers. It references no WinUI types, so all of it is testable without a window. `QuickLaunch.UI` is the WinUI 3 shell — XAML, view models, and the Win32 interop that a launcher cannot avoid.
 
 **Matching** is fzf/Sublime-style bonus scoring rather than edit distance. Launcher queries are abbreviations, not misspellings: someone types `vsc` for Visual Studio Code, so what matters is *where* the matched characters landed — at word starts, in runs, near the front — not how many edits separate the strings. A 64-bit character mask rejects hopeless candidates with a single AND before any of that runs.
+
+**Settings pages** are a curated list rather than a discovered one: Windows offers no way to enumerate them, and the `ms-settings:` URIs are a documented contract instead. The list is deliberately limited to pages worth confirming — an invented URI does not fail until you press Enter, which is worse than the page simply not being listed.
 
 **Applications** come from the shell's Applications folder, which is already the union of Start menu shortcuts, installed packages and the App Paths registry key — the same list Windows itself shows, with one launch identity and one icon source for packaged and unpackaged apps alike.
 
