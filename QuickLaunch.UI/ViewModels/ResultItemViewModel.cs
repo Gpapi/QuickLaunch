@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.UI.Xaml.Media;
 using QuickLaunch.Core.Abstractions;
 
 namespace QuickLaunch.UI.ViewModels;
@@ -19,8 +20,18 @@ public sealed partial class ResultItemViewModel(SearchResult result) : Observabl
     public bool HasSubtitle => !string.IsNullOrEmpty(Result.Subtitle);
 
     /// <summary>
-    /// Placeholder artwork. Applications and files get their real shell icons once icon
-    /// extraction lands; until then every kind has a recognisable Fluent glyph.
+    /// The result's real artwork, filled in shortly after the row appears. Null until
+    /// then, and for results the shell has no icon for.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasIcon))]
+    public partial ImageSource? Icon { get; set; }
+
+    public bool HasIcon => Icon is not null;
+
+    /// <summary>
+    /// Stand-in shown until the icon arrives, and permanently for results that have none.
+    /// Drawn at the same size and position, so nothing shifts when the icon replaces it.
     /// </summary>
     public string Glyph => Result.Kind switch
     {

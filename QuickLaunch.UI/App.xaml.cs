@@ -1,6 +1,11 @@
 using System;
+using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
+using QuickLaunch.Core.Abstractions;
+using QuickLaunch.Core.Indexing;
+using QuickLaunch.Core.Providers;
+using QuickLaunch.Core.Search;
 using QuickLaunch.UI.Services;
 using QuickLaunch.UI.ViewModels;
 
@@ -17,6 +22,7 @@ public partial class App : Application
 
     private MainWindow? _window;
     private ServiceProvider? _services;
+    private SearchCoordinator? _search;
 
     /// <summary>
     /// The application service provider. Views resolve their view models from here;
@@ -50,6 +56,11 @@ public partial class App : Application
         services.AddSingleton<HotKeyService>();
         services.AddSingleton<TrayIconService>();
 
+        services.AddSingleton<AppCatalog>();
+        services.AddSingleton<ISearchProvider, AppSearchProvider>();
+        services.AddSingleton<SearchOrchestrator>();
+        services.AddSingleton<IconService>();
+
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
 
@@ -66,15 +77,29 @@ public partial class App : Application
         _window.AutoHideOnDeactivate = _autoHide;
         _window.Activate();
 
-        // TEMPORARY: sample results so the design can be built before providers exist.
-        // M2 swaps this for the real search orchestrator on the same event.
-        PreviewResultSource.Attach(_window.ViewModel);
-
+        StartSearch();
         RegisterHotKeys();
         SetUpTrayIcon();
 
         // A later launch (Start menu, shortcut, boot task racing us) summons this instance.
         _gate.ListenForActivation(() => _window.DispatcherQueue.TryEnqueue(() => _window.ShowLauncher()));
+    }
+
+    private void StartSearch()
+    {
+        _search = new SearchCoordinator(
+            _window!.ViewModel,
+            Services.GetRequiredService<SearchOrchestrator>(),
+            Services.GetRequiredService<AppCatalog>(),
+            Services.GetRequiredService<IconService>(),
+            _window.DispatcherQueue);
+
+        _search.Start();
+
+        // Enumerating installed applications takes a moment and touches the shell, so it
+        // happens off the UI thread. The catalog announces itself when it is ready.
+        var catalog = Services.GetRequiredService<AppCatalog>();
+        _ = Task.Run(catalog.Refresh);
     }
 
     private void RegisterHotKeys()

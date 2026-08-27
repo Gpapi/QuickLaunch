@@ -25,8 +25,7 @@ public readonly record struct MatchSpan(int Start, int Length);
 /// One row of the launcher: everything the UI needs to draw and rank a candidate.
 /// </summary>
 /// <remarks>
-/// Launching and icon resolution are deliberately absent for now — they arrive with the
-/// providers in M2 rather than as placeholders that assert capability the app lacks.
+/// A result with no <see cref="Launch"/> is informational and cannot be activated.
 /// </remarks>
 public sealed record SearchResult
 {
@@ -48,4 +47,10 @@ public sealed record SearchResult
 
     /// <summary>Regions of <see cref="Title"/> the query matched.</summary>
     public IReadOnlyList<MatchSpan> TitleHighlights { get; init; } = [];
+
+    /// <summary>What activating this result does, or null if it cannot be activated.</summary>
+    public LaunchTarget? Launch { get; init; }
+
+    /// <summary>Where the row's artwork comes from, or null to fall back to a kind glyph.</summary>
+    public IconSource? Icon { get; init; }
 }

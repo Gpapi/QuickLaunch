@@ -184,9 +184,22 @@
                                                 VerticalAlignment="Center"
                                                 CornerRadius="{StaticResource IconPlateCornerRadius}"
                                                 Background="{ThemeResource RowIconPlateBrush}">
-                                            <FontIcon Glyph="{x:Bind Glyph}"
-                                                      FontSize="{StaticResource ResultGlyphFontSize}"
-                                                      Foreground="{ThemeResource GlyphBrush}"/>
+                                            <Grid>
+                                                <!--
+                                                    The glyph holds the space until the real
+                                                    icon arrives, so rows never reflow when
+                                                    artwork lands a moment after the text.
+                                                -->
+                                                <FontIcon Glyph="{x:Bind Glyph}"
+                                                          FontSize="{StaticResource ResultGlyphFontSize}"
+                                                          Foreground="{ThemeResource GlyphBrush}"/>
+
+                                                <Image Source="{x:Bind Icon, Mode=OneWay}"
+                                                       Width="24" Height="24"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       Visibility="{x:Bind HasIcon, Mode=OneWay}"/>
+                                            </Grid>
                                         </Border>
                                     </Grid>
 

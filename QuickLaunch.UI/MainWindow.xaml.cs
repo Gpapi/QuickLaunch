@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using QuickLaunch.Core.Services;
 using QuickLaunch.UI.Native;
 using QuickLaunch.UI.ViewModels;
 using Windows.Graphics;
@@ -360,17 +361,18 @@ public sealed partial class MainWindow : Window
 
     private void ResultRow_Tapped(object sender, TappedRoutedEventArgs e)
     {
-        int index = RowIndexOf(sender);
-
-        if (index >= 0)
-        {
-            ViewModel.Select(index);
-        }
-
         e.Handled = true;
 
-        // Activating the result on click arrives with launching itself, in M2.
-        FocusSearchBox();
+        int index = RowIndexOf(sender);
+
+        if (index < 0)
+        {
+            FocusSearchBox();
+            return;
+        }
+
+        ViewModel.Select(index);
+        Activate(ViewModel.SelectedResult);
     }
 
     private void ResultRow_PointerEntered(object sender, PointerRoutedEventArgs e)
@@ -386,6 +388,33 @@ public sealed partial class MainWindow : Window
         if (RowItem(sender) is { } item)
         {
             item.IsPointerOver = false;
+        }
+    }
+
+    // ---- Activation -----------------------------------------------------
+
+    /// <summary>
+    /// Launches a result and gets out of the way.
+    /// </summary>
+    /// <remarks>
+    /// The launcher hides first so that the window being started comes to the foreground
+    /// against a clear desktop rather than fighting an always-on-top panel for it.
+    /// </remarks>
+    private void Activate(ResultItemViewModel? item)
+    {
+        if (item?.Result.Launch is not { } target)
+        {
+            FocusSearchBox();
+            return;
+        }
+
+        HideLauncher();
+
+        if (!ResultLauncher.TryLaunch(target, out string? error))
+        {
+            // Come back and say so, rather than vanishing as though it had worked.
+            ViewModel.PlaceholderText = $"Could not open {item.Title} — {error}";
+            ShowLauncher();
         }
     }
 
@@ -419,6 +448,11 @@ public sealed partial class MainWindow : Window
                 e.Handled = true;
                 ViewModel.MoveSelection(-1);
                 ScrollSelectionIntoView();
+                break;
+
+            case VirtualKey.Enter:
+                e.Handled = true;
+                Activate(ViewModel.SelectedResult);
                 break;
         }
     }
