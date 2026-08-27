@@ -66,7 +66,7 @@ The suite covers matcher ranking and highlights, the file index and its snapshot
 
 **Files** live in an index of parallel arrays rather than objects: names, parent links and character masks. Full paths are never materialised — each entry knows only its own name and its parent, so a path is rebuilt for the twenty rows shown instead of for all of them. Queries scan across cores, each partition keeping only its own best few.
 
-Measured on a 12-core machine: 300,000 names scanned in 3–8.5 ms, with a floor of 1.5 ms when the character mask rejects everything. A real index of ~190,000 entries builds in about 3.5 seconds in the background, and is cached to disk so the first query after startup already works.
+Measured on a 12-core machine: 300,000 names scanned in 3–8.5 ms, with a floor of 1.5 ms when the character mask rejects everything. A real index of ~129,000 entries builds in about 2 seconds in the background, and is cached to disk so the first query after startup already works.
 
 **Freshness** is handled by rebuilding rather than patching — flat arrays are chosen for scan speed and do not take kindly to insertions in the middle. File system watchers only decide *when* a rebuild is worth doing. The cost is real and worth knowing: a file created seconds ago is not findable until the next rebuild lands.
 
@@ -74,7 +74,11 @@ Measured on a 12-core machine: 300,000 names scanned in 3–8.5 ms, with a floor
 
 Every fixed drive is indexed from its root — keeping to the user profile seems tidy until you keep your work somewhere else, and a projects folder at the root of `C:` is exactly the thing people search for.
 
-What is left out: `Windows`, `Program Files`, `Program Files (x86)` and `ProgramData`, excluded by full path rather than by name so a folder called `Windows` inside a project still counts; hidden and system entries, which covers `AppData`, `.git` and `$Recycle.Bin`; reparse points, so junctions and OneDrive placeholders are not walked twice; and folders whose name begins with a dot. That last one matters more than it sounds: Windows marks its own machinery hidden but cross-platform tools do not, and `.vscode`, `.cargo` and `.rustup` bury real results under package caches. Excluding them took the index from 2.7 MB to 0.3 MB and the walk from 5.7 s to 2.2 s.
+What is left out: `Windows`, `Program Files`, `Program Files (x86)` and `ProgramData`, excluded by full path rather than by name so a folder called `Windows` inside a project still counts; hidden and system entries, which covers `AppData`, `.git` and `$Recycle.Bin`; reparse points, so junctions and OneDrive placeholders are not walked twice; folders whose name begins with a dot; and build output (`bin`, `obj`, `.vs`).
+
+The last two matter more than they sound. Windows marks its own machinery hidden but cross-platform tools do not, so `.vscode`, `.cargo` and `.rustup` otherwise bury real results under package caches. And on a machine with source on it, `bin` and `obj` hold a compiled copy of everything, competing with the source files for the top rows. Both rules match by name at any depth, so a folder genuinely called `bin` is excluded too — a deliberate trade, and `FileIndexOptions.ExcludedFolderNames` is where to change it.
+
+Together they take the index here from ~190,000 entries to ~129,000, and the walk to about 2 seconds.
 
 ## Layout
 

@@ -90,6 +90,12 @@ public sealed record FileIndexOptions
     /// Hidden and system folders are already skipped by attribute, which covers AppData,
     /// .git and $Recycle.Bin. These are the ones that are plainly visible yet still hold
     /// tens of thousands of files nobody searches for by name.
+    ///
+    /// Build output is here for the same reason: on a machine with source on it, bin and
+    /// obj hold copies of everything that was compiled, and those copies compete with the
+    /// source files for the top rows. The rule matches by name at any depth, so a folder
+    /// genuinely called "bin" is excluded too — the trade is deliberate, and this list is
+    /// the place to change it.
     /// </remarks>
     public IReadOnlySet<string> ExcludedFolderNames { get; init; } =
         new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -98,6 +104,9 @@ public sealed record FileIndexOptions
             "__pycache__",
             ".gradle",
             ".nuget",
+            "bin",
+            "obj",
+            ".vs",
         };
 
     /// <summary>

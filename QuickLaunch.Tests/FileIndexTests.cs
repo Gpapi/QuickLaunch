@@ -19,12 +19,14 @@ public class FileIndexTests(ITestOutputHelper output) : IDisposable
         Directory.CreateDirectory(Path.Combine(_root, "Documents", "node_modules", "left-pad"));
         Directory.CreateDirectory(Path.Combine(_root, "Pictures"));
         Directory.CreateDirectory(Path.Combine(_root, ".cargo", "registry"));
+        Directory.CreateDirectory(Path.Combine(_root, "Documents", "obj", "Debug"));
 
         File.WriteAllText(Path.Combine(_root, "Documents", "quarterly-report.docx"), "x");
         File.WriteAllText(Path.Combine(_root, "Documents", "Finance", "budget-2026.xlsx"), "x");
         File.WriteAllText(Path.Combine(_root, "Documents", "node_modules", "left-pad", "index.js"), "x");
         File.WriteAllText(Path.Combine(_root, "Pictures", "holiday.jpg"), "x");
         File.WriteAllText(Path.Combine(_root, ".cargo", "registry", "download.rs"), "x");
+        File.WriteAllText(Path.Combine(_root, "Documents", "obj", "Debug", "quarterly-report.dll"), "x");
 
         var options = new FileIndexOptions { Roots = [_root] };
         return FileIndexBuilder.Build(options, CancellationToken.None);
@@ -89,6 +91,10 @@ public class FileIndexTests(ITestOutputHelper output) : IDisposable
         Assert.Equal(-1, IndexOf(index, ".cargo"));
         Assert.Equal(-1, IndexOf(index, "registry"));
         Assert.Equal(-1, IndexOf(index, "download.rs"));
+
+        // Build output holds copies of the source that would compete with it.
+        Assert.Equal(-1, IndexOf(index, "obj"));
+        Assert.Equal(-1, IndexOf(index, "quarterly-report.dll"));
     }
 
     [Fact]
@@ -152,23 +158,32 @@ public class FileIndexTests(ITestOutputHelper output) : IDisposable
     {
         // Regression: the roots used to be the user profile alone, so a projects folder at
         // the root of a drive — where plenty of people keep their work — was invisible.
+        //
+        // Anchored to this source file rather than to where the test binary runs from: the
+        // binary lives under bin, which the index deliberately excludes.
+        string sourceFolder = Path.GetDirectoryName(ThisFile())!;
+
+        if (!Directory.Exists(sourceFolder))
+        {
+            output.WriteLine($"built elsewhere ({sourceFolder}); nothing to check here.");
+            return;
+        }
+
         var clock = Stopwatch.StartNew();
         var index = FileIndexBuilder.Build(new FileIndexOptions(), CancellationToken.None);
         clock.Stop();
 
         output.WriteLine($"{index.Count:N0} entries in {clock.Elapsed.TotalSeconds:N1}s");
 
-        // Wherever this test is running from, the folder holding it must be findable.
-        string here = AppContext.BaseDirectory;
-        string folder = new DirectoryInfo(here).Name;
-
+        string folder = new DirectoryInfo(sourceFolder).Name;
         var hits = index.Search(folder, 50, CancellationToken.None);
 
         Assert.True(
-            hits.Any(hit => index.GetPath(hit.Index).StartsWith(here.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase)
-                            || here.StartsWith(index.GetPath(hit.Index), StringComparison.OrdinalIgnoreCase)),
-            $"nothing in the index matched the folder this test runs from: {here}");
+            hits.Any(hit => index.GetPath(hit.Index).Equals(sourceFolder, StringComparison.OrdinalIgnoreCase)),
+            $"the index did not contain the folder this test's source lives in: {sourceFolder}");
     }
+
+    private static string ThisFile([System.Runtime.CompilerServices.CallerFilePath] string path = "") => path;
 
     [Fact]
     public void Searching_three_hundred_thousand_names_stays_within_budget()
