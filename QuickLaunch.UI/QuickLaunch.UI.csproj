@@ -12,6 +12,16 @@
     <WinUISDKReferences>false</WinUISDKReferences>
     <EnableMsixTooling>true</EnableMsixTooling>
     <Nullable>enable</Nullable>
+    <!-- Program.cs owns Main so the single-instance check can run before any XAML loads. -->
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+    <!--
+      The MVP ships as a plain exe, which means no package identity, which means the
+      Windows App Runtime has to be bootstrapped explicitly. Setting WindowsPackageType
+      to None is what makes the build emit that bootstrap initializer; without it the
+      loose exe dies on the first WinRT activation with REGDB_E_CLASSNOTREG.
+      Build with -p:QuickLaunchPackaged=true to produce the MSIX flavour instead.
+    -->
+    <WindowsPackageType Condition="'$(QuickLaunchPackaged)' != 'true'">None</WindowsPackageType>
   </PropertyGroup>
 
   <ItemGroup>

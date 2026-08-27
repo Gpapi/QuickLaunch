@@ -42,7 +42,7 @@
             <Grid Grid.Column="1" VerticalAlignment="Center">
                 <!-- x:Bind converts bool to Visibility implicitly, so no converter is needed. -->
                 <TextBlock x:Name="PlaceholderText"
-                           Text="Search apps, files..."
+                           Text="{x:Bind ViewModel.PlaceholderText, Mode=OneWay}"
                            FontSize="18"
                            FontWeight="Light"
                            Opacity="0.38"

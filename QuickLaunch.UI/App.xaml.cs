@@ -1,16 +1,22 @@
+using System;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
+using QuickLaunch.UI.Services;
 using QuickLaunch.UI.ViewModels;
-using System;
 
 namespace QuickLaunch.UI;
 
 /// <summary>
-/// Application entry point and composition root.
+/// Composition root and application lifetime owner.
 /// </summary>
 public partial class App : Application
 {
-    private Window? _window;
+    private readonly SingleInstanceGate _gate;
+    private readonly bool _startHidden;
+    private readonly bool _autoHide;
+
+    private MainWindow? _window;
+    private ServiceProvider? _services;
 
     /// <summary>
     /// The application service provider. Views resolve their view models from here;
@@ -18,19 +24,29 @@ public partial class App : Application
     /// </summary>
     public static IServiceProvider Services { get; private set; } = null!;
 
-    public App()
+    internal App(SingleInstanceGate gate, bool startHidden, bool autoHide)
     {
+        _gate = gate;
+        _startHidden = startHidden;
+        _autoHide = autoHide;
+
         InitializeComponent();
-        Services = ConfigureServices();
+
+        _services = ConfigureServices();
+        Services = _services;
     }
 
     /// <summary>
     /// Builds the DI container. Search providers and indexing services are registered
     /// here as they land; the container is built once, at startup, before any window exists.
     /// </summary>
-    private static IServiceProvider ConfigureServices()
+    private static ServiceProvider ConfigureServices()
     {
         var services = new ServiceCollection();
+
+        services.AddSingleton<MessageWindow>();
+        services.AddSingleton<HotKeyService>();
+        services.AddSingleton<TrayIconService>();
 
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
@@ -41,6 +57,69 @@ public partial class App : Application
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         _window = Services.GetRequiredService<MainWindow>();
+
+        // The XAML tree only lays out once the window has been activated, so activate
+        // unconditionally and let the window hide itself again if we start in the background.
+        _window.StartHidden = _startHidden;
+        _window.AutoHideOnDeactivate = _autoHide;
         _window.Activate();
+
+        RegisterHotKeys();
+        SetUpTrayIcon();
+
+        // A later launch (Start menu, shortcut, boot task racing us) summons this instance.
+        _gate.ListenForActivation(() => _window.DispatcherQueue.TryEnqueue(() => _window.ShowLauncher()));
+    }
+
+    private void RegisterHotKeys()
+    {
+        var hotKeys = Services.GetRequiredService<HotKeyService>();
+        var preferred = HotKeyBinding.Defaults[0];
+        string? firstError = null;
+
+        foreach (var binding in HotKeyBinding.Defaults)
+        {
+            if (hotKeys.TryRegister(binding.Modifiers, binding.VirtualKey, () => _window!.ToggleLauncher(), out string? error))
+            {
+                _window!.ViewModel.HotKey = binding.ToString();
+
+                if (binding != preferred)
+                {
+                    // Say so rather than silently binding something the user did not expect.
+                    _window.ViewModel.PlaceholderText =
+                        $"{preferred} was taken — press {binding} to summon QuickLaunch";
+                }
+
+                return;
+            }
+
+            firstError ??= error;
+        }
+
+        // Every candidate was refused. The tray icon still opens the launcher, so report
+        // the problem instead of failing hard.
+        _window!.ReportHotKeyFailure($"No shortcut could be registered. {firstError}");
+    }
+
+    private void SetUpTrayIcon()
+    {
+        var tray = Services.GetRequiredService<TrayIconService>();
+
+        tray.ShowRequested += (_, _) => _window!.DispatcherQueue.TryEnqueue(() => _window!.ShowLauncher());
+        tray.QuitRequested += (_, _) => _window!.DispatcherQueue.TryEnqueue(Shutdown);
+
+        tray.Show($"QuickLaunch  —  {_window!.ViewModel.HotKey}");
+    }
+
+    /// <summary>
+    /// Tears down the Win32 resources before exiting. Skipping this leaves a dead tray
+    /// icon behind until the user hovers over it.
+    /// </summary>
+    private void Shutdown()
+    {
+        _services?.Dispose();
+        _services = null;
+
+        Exit();
     }
 }
