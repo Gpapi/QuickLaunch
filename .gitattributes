@@ -1,0 +1,17 @@
+# Normalise line endings so the working tree stays CRLF on Windows while the
+# repository keeps LF, instead of warning on every commit.
+* text=auto
+
+*.cs        text diff=csharp
+*.csproj    text
+*.slnx      text
+*.xaml      text
+*.md        text
+*.json      text
+*.manifest  text
+*.appxmanifest text
+*.pubxml    text
+
+*.png  binary
+*.ico  binary
+*.bin  binary
