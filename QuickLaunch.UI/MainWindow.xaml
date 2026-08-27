@@ -112,31 +112,62 @@
                                VerticalAlignment="Center"/>
                 </Grid>
 
+                <!--
+                    IsTabStop and AllowFocusOnInteraction are both off here and on the rows:
+                    focus belongs to the query box at all times, and a click that moved it
+                    into the list would leave the keyboard handling with nothing to fire on.
+                -->
                 <ScrollViewer x:Name="ResultsScroller"
                               Grid.Row="1"
                               Padding="{StaticResource ResultsPadding}"
                               VerticalScrollBarVisibility="Hidden"
                               HorizontalScrollMode="Disabled"
+                              IsTabStop="False"
+                              AllowFocusOnInteraction="False"
                               Visibility="{x:Bind ViewModel.HasResults, Mode=OneWay}">
-                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.Results, Mode=OneWay}">
+                    <ItemsRepeater x:Name="ResultsRepeater"
+                                   ItemsSource="{x:Bind ViewModel.Results, Mode=OneWay}">
                         <ItemsRepeater.Layout>
                             <StackLayout/>
                         </ItemsRepeater.Layout>
                         <ItemsRepeater.ItemTemplate>
                             <DataTemplate x:DataType="vm:ResultItemViewModel">
 
-                                <Grid Height="{StaticResource ResultRowHeight}">
+                                <!--
+                                    Background="Transparent" is load-bearing: a Grid with no
+                                    brush is not hit-testable, so without it clicks fall
+                                    straight through the row to the ScrollViewer behind it.
+                                -->
+                                <Grid Height="{StaticResource ResultRowHeight}"
+                                      Background="Transparent"
+                                      AllowFocusOnInteraction="False"
+                                      Tapped="ResultRow_Tapped"
+                                      PointerEntered="ResultRow_PointerEntered"
+                                      PointerExited="ResultRow_PointerExited">
 
                                     <!--
-                                        Selection sits behind the content and spans the whole
-                                        row, so the highlight is not inset by content padding.
-                                        x:Bind converts the bool to Visibility implicitly.
+                                        Selection and hover sit behind the content and span the
+                                        whole row, so neither is inset by content padding.
+                                        x:Bind converts the bools to Visibility implicitly.
                                     -->
+                                    <Border Background="{ThemeResource RowHoverBrush}"
+                                            CornerRadius="{StaticResource RowCornerRadius}"
+                                            IsHitTestVisible="False"
+                                            Visibility="{x:Bind ShowsHover, Mode=OneWay}"/>
+
                                     <Border Background="{ThemeResource RowSelectedBrush}"
                                             CornerRadius="{StaticResource RowCornerRadius}"
+                                            IsHitTestVisible="False"
                                             Visibility="{x:Bind IsSelected, Mode=OneWay}"/>
 
-                                    <Grid Padding="{StaticResource RowPadding}">
+                                    <!--
+                                        The row's contents are decorative; all interaction
+                                        belongs to the row itself. Pointer enter and exit
+                                        bubble, so leaving the children hit-testable means a
+                                        child's exit event clears the row's own hover state
+                                        as the pointer crosses between them.
+                                    -->
+                                    <Grid Padding="{StaticResource RowPadding}" IsHitTestVisible="False">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>

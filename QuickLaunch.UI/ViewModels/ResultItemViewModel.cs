@@ -47,5 +47,17 @@ public sealed partial class ResultItemViewModel(SearchResult result) : Observabl
 
     /// <summary>Drives the row's selection treatment. Set by the list, never by the row.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsHover))]
     public partial bool IsSelected { get; set; }
+
+    /// <summary>Whether the pointer is currently over this row.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsHover))]
+    public partial bool IsPointerOver { get; set; }
+
+    /// <summary>
+    /// Hover is only drawn on rows that are not already selected — stacking the two
+    /// fills would make the hovered row read as the selected one.
+    /// </summary>
+    public bool ShowsHover => IsPointerOver && !IsSelected;
 }

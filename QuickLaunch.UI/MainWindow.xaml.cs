@@ -3,6 +3,7 @@ using System.Numerics;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Hosting;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using QuickLaunch.UI.Native;
 using QuickLaunch.UI.ViewModels;
@@ -61,6 +62,13 @@ public sealed partial class MainWindow : Window
 
         // Translation is animatable without fighting the layout system, which owns Offset.
         ElementCompositionPreview.SetIsTranslationEnabled(RootPanel, true);
+
+        // Catch-all so no click anywhere in the panel can leave the query box unfocused.
+        // Registered with handledEventsToo because rows mark their own taps handled.
+        RootPanel.AddHandler(
+            UIElement.PointerPressedEvent,
+            new PointerEventHandler(OnRootPointerPressed),
+            handledEventsToo: true);
 
         // Loaded fires once the XAML tree is laid out and rendered. Only then does the
         // TextBox exist in the visual tree to receive focus.
@@ -129,7 +137,7 @@ public sealed partial class MainWindow : Window
         AppWindow.Show(activateWindow: true);
         ForceForeground();
 
-        SearchBox.Focus(FocusState.Programmatic);
+        FocusSearchBox();
         SearchBox.SelectAll();
 
         PlayEntranceAnimation();
@@ -169,13 +177,26 @@ public sealed partial class MainWindow : Window
     private void OnActivated(object sender, WindowActivatedEventArgs args)
     {
         // Losing focus means the user clicked elsewhere — a launcher should get out of the way.
-        if (AutoHideOnDeactivate
-            && args.WindowActivationState == WindowActivationState.Deactivated
-            && AppWindow.IsVisible)
+        if (args.WindowActivationState == WindowActivationState.Deactivated)
         {
-            HideLauncher();
+            if (AutoHideOnDeactivate && AppWindow.IsVisible)
+            {
+                HideLauncher();
+            }
+
+            return;
         }
+
+        // Regaining activation must also regain a caret, however focus was lost.
+        FocusSearchBox();
     }
+
+    /// <summary>
+    /// Returns focus to the query box. Every interaction ends here: the launcher is a
+    /// keyboard surface and all key handling hangs off the search box, so focus resting
+    /// anywhere else leaves typing and the arrow keys dead.
+    /// </summary>
+    private void FocusSearchBox() => SearchBox.Focus(FocusState.Programmatic);
 
     private void OnResultsChanged(object? sender, EventArgs e)
     {
@@ -316,6 +337,56 @@ public sealed partial class MainWindow : Window
 
         visual.StartAnimation("Translation", slide);
         visual.StartAnimation("Opacity", fade);
+    }
+
+    // ---- Pointer --------------------------------------------------------
+
+    private void OnRootPointerPressed(object sender, PointerRoutedEventArgs e) => FocusSearchBox();
+
+    /// <summary>Index of the row an event came from, or -1 if it did not come from one.</summary>
+    /// <remarks>
+    /// ItemsRepeater does not set DataContext on realized elements the way ListView does,
+    /// so the item cannot be read off the sender. Asking the repeater for the element's
+    /// index is the supported route, and an index is what selection needs anyway.
+    /// </remarks>
+    private int RowIndexOf(object sender) =>
+        sender is UIElement element ? ResultsRepeater.GetElementIndex(element) : -1;
+
+    private ResultItemViewModel? RowItem(object sender)
+    {
+        int index = RowIndexOf(sender);
+        return index >= 0 && index < ViewModel.Results.Count ? ViewModel.Results[index] : null;
+    }
+
+    private void ResultRow_Tapped(object sender, TappedRoutedEventArgs e)
+    {
+        int index = RowIndexOf(sender);
+
+        if (index >= 0)
+        {
+            ViewModel.Select(index);
+        }
+
+        e.Handled = true;
+
+        // Activating the result on click arrives with launching itself, in M2.
+        FocusSearchBox();
+    }
+
+    private void ResultRow_PointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        if (RowItem(sender) is { } item)
+        {
+            item.IsPointerOver = true;
+        }
+    }
+
+    private void ResultRow_PointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        if (RowItem(sender) is { } item)
+        {
+            item.IsPointerOver = false;
+        }
     }
 
     // ---- Keyboard -------------------------------------------------------
