@@ -25,10 +25,11 @@ public sealed class SettingsSearchProvider : ISearchProvider
     public string Name => "Settings";
 
     /// <summary>
-    /// Just below applications. Someone typing "bluetooth" almost always wants the settings
-    /// page, but a query that names an installed program should still surface the program.
+    /// A little above files and below applications. Someone typing "bluetooth" almost
+    /// always wants the settings page, but the nudge stays small enough that it cannot
+    /// lift a poor match above a good one from another provider.
     /// </summary>
-    public int Weight => 110;
+    public int Weight => 105;
 
     public async IAsyncEnumerable<SearchResult> SearchAsync(
         Query query,

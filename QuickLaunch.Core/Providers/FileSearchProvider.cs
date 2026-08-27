@@ -37,10 +37,18 @@ public sealed class FileSearchProvider(FileIndexService index) : ISearchProvider
     public string Name => "Files";
 
     /// <summary>
-    /// Files rank below applications: a launcher query is more often meant to start a
-    /// program than to open a document that happens to share its name.
+    /// Files carry no bias of their own. They rank below applications because a launcher
+    /// query more often means "start this program" than "open a document of that name",
+    /// and the application weighting alone is enough to express that.
     /// </summary>
-    public int Weight => 85;
+    /// <remarks>
+    /// This was 85, which was low enough to override match quality rather than break ties
+    /// with it: the query "pti" scored "ptinew" at 80 and "Projecting to this PC" — three
+    /// scattered letters across three words — at 65, and the weighting still put the
+    /// settings page first. A provider's bias has to be smaller than the difference
+    /// between a good match and a poor one.
+    /// </remarks>
+    public int Weight => 100;
 
     public async IAsyncEnumerable<SearchResult> SearchAsync(
         Query query,
