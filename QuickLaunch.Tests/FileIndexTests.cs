@@ -148,6 +148,29 @@ public class FileIndexTests(ITestOutputHelper output) : IDisposable
         Assert.Null(FileIndexSnapshot.TryLoad(Path.Combine(_root, "does-not-exist.bin")));
 
     [Fact]
+    public void The_default_configuration_indexes_work_kept_outside_the_user_profile()
+    {
+        // Regression: the roots used to be the user profile alone, so a projects folder at
+        // the root of a drive — where plenty of people keep their work — was invisible.
+        var clock = Stopwatch.StartNew();
+        var index = FileIndexBuilder.Build(new FileIndexOptions(), CancellationToken.None);
+        clock.Stop();
+
+        output.WriteLine($"{index.Count:N0} entries in {clock.Elapsed.TotalSeconds:N1}s");
+
+        // Wherever this test is running from, the folder holding it must be findable.
+        string here = AppContext.BaseDirectory;
+        string folder = new DirectoryInfo(here).Name;
+
+        var hits = index.Search(folder, 50, CancellationToken.None);
+
+        Assert.True(
+            hits.Any(hit => index.GetPath(hit.Index).StartsWith(here.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase)
+                            || here.StartsWith(index.GetPath(hit.Index), StringComparison.OrdinalIgnoreCase)),
+            $"nothing in the index matched the folder this test runs from: {here}");
+    }
+
+    [Fact]
     public void Searching_three_hundred_thousand_names_stays_within_budget()
     {
         var index = SyntheticIndex(300_000);

@@ -88,7 +88,7 @@ public static class FileIndexBuilder
 
                 bool isDirectory = (entry.Attributes & FileAttributes.Directory) != 0;
 
-                if (isDirectory && IsExcludedFolder(entry.Name, options))
+                if (isDirectory && IsExcludedFolder(entry, options))
                 {
                     continue;
                 }
@@ -105,9 +105,10 @@ public static class FileIndexBuilder
         }
     }
 
-    private static bool IsExcludedFolder(string name, FileIndexOptions options) =>
-        options.ExcludedFolderNames.Contains(name)
-        || (options.ExcludeDotFolders && name.StartsWith('.'));
+    private static bool IsExcludedFolder(FileSystemInfo entry, FileIndexOptions options) =>
+        options.ExcludedFolderNames.Contains(entry.Name)
+        || (options.ExcludeDotFolders && entry.Name.StartsWith('.'))
+        || options.ExcludedPaths.Contains(entry.FullName.TrimEnd(Path.DirectorySeparatorChar));
 
     /// <summary>
     /// Enumerating can throw part-way through, after yielding some entries. This keeps

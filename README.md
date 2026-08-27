@@ -8,7 +8,7 @@ A Spotlight-style launcher for Windows. Press the hotkey, type a few characters,
 
 - **Summon from anywhere** — `Alt+Space`, falling back to `Ctrl+Alt+Space` if another app already owns it (PowerToys Run claims `Alt+Space` by default). The launcher tells you which shortcut it got.
 - **Applications** — everything Windows itself lists, packaged and unpackaged, with their real shell icons.
-- **Files and folders** — an in-process index of your profile, scanned in a few milliseconds per keystroke.
+- **Files and folders** — an in-process index of every fixed drive, scanned in a few milliseconds per keystroke.
 - **Windows Settings** — around eighty pages, findable by the words people actually type: `resolution` finds Display, `wallpaper` finds Background, `uninstall` finds Installed apps.
 - **The web** — a search fallback that is always there, and recognition of an address when you type one.
 - **Launching** — `Enter` or click; the launcher hides first so the new window comes forward cleanly.
@@ -66,13 +66,15 @@ The suite covers matcher ranking and highlights, the file index and its snapshot
 
 **Files** live in an index of parallel arrays rather than objects: names, parent links and character masks. Full paths are never materialised — each entry knows only its own name and its parent, so a path is rebuilt for the twenty rows shown instead of for all of them. Queries scan across cores, each partition keeping only its own best few.
 
-Measured on a 12-core machine: 300,000 names scanned in 3–8.5 ms, with a floor of 1.5 ms when the character mask rejects everything.
+Measured on a 12-core machine: 300,000 names scanned in 3–8.5 ms, with a floor of 1.5 ms when the character mask rejects everything. A real index of ~190,000 entries builds in about 3.5 seconds in the background, and is cached to disk so the first query after startup already works.
 
 **Freshness** is handled by rebuilding rather than patching — flat arrays are chosen for scan speed and do not take kindly to insertions in the middle. File system watchers only decide *when* a rebuild is worth doing. The cost is real and worth knowing: a file created seconds ago is not findable until the next rebuild lands.
 
 ### What is deliberately excluded from the file index
 
-Hidden and system entries, which covers `AppData`, `.git` and `$Recycle.Bin`; reparse points, so junctions and OneDrive placeholders are not walked twice; and folders whose name begins with a dot. That last one matters more than it sounds: Windows marks its own machinery hidden but cross-platform tools do not, and `.vscode`, `.cargo` and `.rustup` bury real results under package caches. Excluding them took the index from 2.7 MB to 0.3 MB and the walk from 5.7 s to 2.2 s.
+Every fixed drive is indexed from its root — keeping to the user profile seems tidy until you keep your work somewhere else, and a projects folder at the root of `C:` is exactly the thing people search for.
+
+What is left out: `Windows`, `Program Files`, `Program Files (x86)` and `ProgramData`, excluded by full path rather than by name so a folder called `Windows` inside a project still counts; hidden and system entries, which covers `AppData`, `.git` and `$Recycle.Bin`; reparse points, so junctions and OneDrive placeholders are not walked twice; and folders whose name begins with a dot. That last one matters more than it sounds: Windows marks its own machinery hidden but cross-platform tools do not, and `.vscode`, `.cargo` and `.rustup` bury real results under package caches. Excluding them took the index from 2.7 MB to 0.3 MB and the walk from 5.7 s to 2.2 s.
 
 ## Layout
 
