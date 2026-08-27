@@ -25,9 +25,16 @@ public sealed partial class ResultItemViewModel(SearchResult result) : Observabl
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasIcon))]
+    [NotifyPropertyChangedFor(nameof(ShowsGlyph))]
     public partial ImageSource? Icon { get; set; }
 
     public bool HasIcon => Icon is not null;
+
+    /// <summary>
+    /// The stand-in is hidden the moment real artwork arrives. Leaving it underneath
+    /// shows through wherever the icon is transparent.
+    /// </summary>
+    public bool ShowsGlyph => Icon is null;
 
     /// <summary>
     /// Stand-in shown until the icon arrives, and permanently for results that have none.

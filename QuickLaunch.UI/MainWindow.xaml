@@ -192,7 +192,8 @@
                                                 -->
                                                 <FontIcon Glyph="{x:Bind Glyph}"
                                                           FontSize="{StaticResource ResultGlyphFontSize}"
-                                                          Foreground="{ThemeResource GlyphBrush}"/>
+                                                          Foreground="{ThemeResource GlyphBrush}"
+                                                          Visibility="{x:Bind ShowsGlyph, Mode=OneWay}"/>
 
                                                 <Image Source="{x:Bind Icon, Mode=OneWay}"
                                                        Width="24" Height="24"
