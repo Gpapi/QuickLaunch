@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="QuickLaunch.UI.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:QuickLaunch.UI"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <!--
+        DesktopAcrylicBackdrop blurs whatever is behind the window.
+        This is the right material for an overlay/launcher panel.
+        Mica (the template default) samples the wallpaper — better for full app windows.
+    -->
+    <Window.SystemBackdrop>
+        <DesktopAcrylicBackdrop />
+    </Window.SystemBackdrop>
+
+    <Grid>
+        <!-- Search input row — fixed 66px height, always visible -->
+        <Grid Height="66" VerticalAlignment="Top" Margin="16,0,12,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="44"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Segoe Fluent Icons search glyph (E721) -->
+            <FontIcon Grid.Column="0"
+                      Glyph="&#xE721;"
+                      FontSize="20"
+                      Opacity="0.55"
+                      VerticalAlignment="Center"
+                      HorizontalAlignment="Center"/>
+
+            <!--
+                Placeholder + TextBox layered in a Grid.
+                The placeholder is just a TextBlock behind the TextBox —
+                simpler and more controllable than TextBox.PlaceholderText,
+                which is hard to style in WinUI 3.
+            -->
+            <Grid Grid.Column="1" VerticalAlignment="Center">
+                <TextBlock x:Name="PlaceholderText"
+                           Text="Search apps, files..."
+                           FontSize="18"
+                           FontWeight="Light"
+                           Opacity="0.38"
+                           VerticalAlignment="Center"
+                           IsHitTestVisible="False"/>
+
+                <!--
+                    WinUI 3 TextBox visual states are driven by resource keys, not simple
+                    property setters. Overriding these keys inline is the correct way to
+                    strip the background and border across all interaction states
+                    (normal, hover, focused) without writing a full ControlTemplate.
+                -->
+                <TextBox x:Name="SearchBox"
+                         FontSize="18"
+                         VerticalAlignment="Center"
+                         TextChanged="SearchBox_TextChanged"
+                         KeyDown="SearchBox_KeyDown">
+                    <TextBox.Resources>
+                        <SolidColorBrush x:Key="TextControlBackground"              Color="Transparent"/>
+                        <SolidColorBrush x:Key="TextControlBackgroundPointerOver"   Color="Transparent"/>
+                        <SolidColorBrush x:Key="TextControlBackgroundFocused"       Color="Transparent"/>
+                        <SolidColorBrush x:Key="TextControlBorderBrush"             Color="Transparent"/>
+                        <SolidColorBrush x:Key="TextControlBorderBrushPointerOver"  Color="Transparent"/>
+                        <SolidColorBrush x:Key="TextControlBorderBrushFocused"      Color="Transparent"/>
+                        <!--
+                            TextControlThemePadding is the internal padding of the TextBox —
+                            it's what causes the caret and text to sit lower than the
+                            placeholder TextBlock. Zeroing it aligns both perfectly.
+                        -->
+                        <Thickness x:Key="TextControlThemePadding">0,0,0,0</Thickness>
+                    </TextBox.Resources>
+                </TextBox>
+            </Grid>
+        </Grid>
+    </Grid>
+</Window>

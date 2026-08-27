@@ -1,0 +1,28 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]64/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Publish
+publish/
+*.pubxml.user
+
+# MSIX
+AppPackages/
+BundleArtifacts/
+*.appx
+*.msix
+*.cer
+*.pfx
+
+# Misc
+*.log

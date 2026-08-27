@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "QuickLaunch.UI (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "QuickLaunch.UI (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
