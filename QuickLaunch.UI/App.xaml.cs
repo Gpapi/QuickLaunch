@@ -30,6 +30,8 @@ public partial class App : Application
         _startHidden = startHidden;
         _autoHide = autoHide;
 
+        UnhandledException += (_, e) => CrashLog.Write(e.Exception);
+
         InitializeComponent();
 
         _services = ConfigureServices();
@@ -63,6 +65,10 @@ public partial class App : Application
         _window.StartHidden = _startHidden;
         _window.AutoHideOnDeactivate = _autoHide;
         _window.Activate();
+
+        // TEMPORARY: sample results so the design can be built before providers exist.
+        // M2 swaps this for the real search orchestrator on the same event.
+        PreviewResultSource.Attach(_window.ViewModel);
 
         RegisterHotKeys();
         SetUpTrayIcon();

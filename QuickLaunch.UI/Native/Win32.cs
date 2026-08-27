@@ -150,6 +150,20 @@ internal static partial class Win32
     [LibraryImport("shcore.dll")]
     internal static partial int GetDpiForMonitor(IntPtr hmonitor, int dpiType, out uint dpiX, out uint dpiY);
 
+    // ---- Window chrome (DWM) --------------------------------------------
+
+    /// <summary>Corner rounding policy for the window.</summary>
+    internal const uint DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+
+    /// <summary>Colour of the 1px frame Windows draws around the window.</summary>
+    internal const uint DWMWA_BORDER_COLOR = 34;
+
+    /// <summary>Full Windows 11 rounding, matching the launcher's own corner radius.</summary>
+    internal const uint DWMWCP_ROUND = 2;
+
+    [LibraryImport("dwmapi.dll")]
+    internal static partial int DwmSetWindowAttribute(IntPtr hwnd, uint attribute, ref uint value, uint size);
+
     // ---- Tray icon ------------------------------------------------------
 
     internal const uint NIM_ADD = 0x00000000;
