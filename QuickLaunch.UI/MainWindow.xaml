@@ -40,24 +40,30 @@
                 which is hard to style in WinUI 3.
             -->
             <Grid Grid.Column="1" VerticalAlignment="Center">
+                <!-- x:Bind converts bool to Visibility implicitly, so no converter is needed. -->
                 <TextBlock x:Name="PlaceholderText"
                            Text="Search apps, files..."
                            FontSize="18"
                            FontWeight="Light"
                            Opacity="0.38"
                            VerticalAlignment="Center"
-                           IsHitTestVisible="False"/>
+                           IsHitTestVisible="False"
+                           Visibility="{x:Bind ViewModel.IsQueryEmpty, Mode=OneWay}"/>
 
                 <!--
                     WinUI 3 TextBox visual states are driven by resource keys, not simple
                     property setters. Overriding these keys inline is the correct way to
                     strip the background and border across all interaction states
                     (normal, hover, focused) without writing a full ControlTemplate.
+
+                    UpdateSourceTrigger=PropertyChanged is essential: the WinUI default for
+                    TextBox.Text is LostFocus, which would only run a search when focus left
+                    the box. We need every keystroke.
                 -->
                 <TextBox x:Name="SearchBox"
                          FontSize="18"
                          VerticalAlignment="Center"
-                         TextChanged="SearchBox_TextChanged"
+                         Text="{x:Bind ViewModel.QueryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                          KeyDown="SearchBox_KeyDown">
                     <TextBox.Resources>
                         <SolidColorBrush x:Key="TextControlBackground"              Color="Transparent"/>

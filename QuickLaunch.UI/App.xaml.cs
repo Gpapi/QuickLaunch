@@ -1,50 +1,46 @@
-﻿using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
-using Microsoft.UI.Xaml.Data;
-using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Navigation;
-using Microsoft.UI.Xaml.Shapes;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.UI.Xaml;
+using QuickLaunch.UI.ViewModels;
 using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Runtime.InteropServices.WindowsRuntime;
-using Windows.ApplicationModel;
-using Windows.ApplicationModel.Activation;
-using Windows.Foundation;
-using Windows.Foundation.Collections;
 
-// To learn more about WinUI, the WinUI project structure,
-// and more about our project templates, see: http://aka.ms/winui-project-info.
+namespace QuickLaunch.UI;
 
-namespace QuickLaunch.UI
+/// <summary>
+/// Application entry point and composition root.
+/// </summary>
+public partial class App : Application
 {
+    private Window? _window;
+
     /// <summary>
-    /// Provides application-specific behavior to supplement the default Application class.
+    /// The application service provider. Views resolve their view models from here;
+    /// everything else is constructor-injected.
     /// </summary>
-    public partial class App : Application
+    public static IServiceProvider Services { get; private set; } = null!;
+
+    public App()
     {
-        private Window? _window;
+        InitializeComponent();
+        Services = ConfigureServices();
+    }
 
-        /// <summary>
-        /// Initializes the singleton application object.  This is the first line of authored code
-        /// executed, and as such is the logical equivalent of main() or WinMain().
-        /// </summary>
-        public App()
-        {
-            InitializeComponent();
-        }
+    /// <summary>
+    /// Builds the DI container. Search providers and indexing services are registered
+    /// here as they land; the container is built once, at startup, before any window exists.
+    /// </summary>
+    private static IServiceProvider ConfigureServices()
+    {
+        var services = new ServiceCollection();
 
-        /// <summary>
-        /// Invoked when the application is launched.
-        /// </summary>
-        /// <param name="args">Details about the launch request and process.</param>
-        protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
-        {
-            _window = new MainWindow();
-            _window.Activate();
-        }
+        services.AddSingleton<MainViewModel>();
+        services.AddSingleton<MainWindow>();
+
+        return services.BuildServiceProvider();
+    }
+
+    protected override void OnLaunched(LaunchActivatedEventArgs args)
+    {
+        _window = Services.GetRequiredService<MainWindow>();
+        _window.Activate();
     }
 }
