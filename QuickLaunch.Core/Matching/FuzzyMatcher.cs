@@ -61,6 +61,18 @@ public sealed class FuzzyMatcher
     private int[] _bonus = new int[MaxCandidateLength];
     private short[] _parents = new short[MaxQueryLength * MaxCandidateLength];
 
+    // Case folding is done once per string rather than once per cell. The inner loop
+    // visits every (query, candidate) pair, so folding there repeated the work for each
+    // character of the query — the single biggest cost in scanning a large index.
+    private readonly char[] _foldedCandidate = new char[MaxCandidateLength];
+    private readonly char[] _foldedQuery = new char[MaxQueryLength];
+
+    // The same query is matched against every candidate in a partition, so its folded
+    // form is kept between calls. Comparing a handful of characters to decide whether it
+    // changed is far cheaper than folding them again three hundred thousand times.
+    private readonly char[] _lastQuery = new char[MaxQueryLength];
+    private int _lastQueryLength = -1;
+
     /// <summary>
     /// A 64-bit summary of which characters a string contains, letting an obvious
     /// non-match be rejected with one AND rather than a full dynamic-programming pass.
@@ -76,6 +88,23 @@ public sealed class FuzzyMatcher
         }
 
         return mask;
+    }
+
+    /// <summary>Folds the query to lower case, reusing the previous result when it is unchanged.</summary>
+    private void FoldQuery(ReadOnlySpan<char> query)
+    {
+        if (_lastQueryLength == query.Length && query.SequenceEqual(_lastQuery.AsSpan(0, _lastQueryLength)))
+        {
+            return;
+        }
+
+        for (int i = 0; i < query.Length; i++)
+        {
+            _lastQuery[i] = query[i];
+            _foldedQuery[i] = char.ToLowerInvariant(query[i]);
+        }
+
+        _lastQueryLength = query.Length;
     }
 
     private static int BitOf(char c)
@@ -109,6 +138,32 @@ public sealed class FuzzyMatcher
         ulong queryMask,
         ReadOnlySpan<char> candidate,
         ulong candidateMask,
+        out int score,
+        out IReadOnlyList<MatchSpan> highlights) =>
+        Match(query, queryMask, candidate, candidateMask, trace: true, out score, out highlights);
+
+    /// <summary>
+    /// Scores without working out which characters matched.
+    /// </summary>
+    /// <remarks>
+    /// The file index scores hundreds of thousands of candidates for every keystroke but
+    /// only ever shows twenty. Skipping the traceback avoids allocating a highlight list
+    /// for each of the many thousands that match and are then discarded.
+    /// </remarks>
+    public bool TryScore(
+        ReadOnlySpan<char> query,
+        ulong queryMask,
+        ReadOnlySpan<char> candidate,
+        ulong candidateMask,
+        out int score) =>
+        Match(query, queryMask, candidate, candidateMask, trace: false, out score, out _);
+
+    private bool Match(
+        ReadOnlySpan<char> query,
+        ulong queryMask,
+        ReadOnlySpan<char> candidate,
+        ulong candidateMask,
+        bool trace,
         out int score,
         out IReadOnlyList<MatchSpan> highlights)
     {
@@ -146,12 +201,14 @@ public sealed class FuzzyMatcher
         int n = query.Length;
         int m = candidate.Length;
 
+        FoldQuery(query);
+
         int bestScore = NoMatch;
         int bestEnd = -1;
 
         for (int i = 0; i < n; i++)
         {
-            char queryChar = char.ToLowerInvariant(query[i]);
+            char queryChar = _foldedQuery[i];
 
             // Best score for query[0..i-1] ending at some position at least two back,
             // carried forward so the gap penalty stays affine instead of quadratic.
@@ -179,7 +236,7 @@ public sealed class FuzzyMatcher
 
                 // A candidate position cannot hold the i-th query character if there is
                 // not room for the ones before it.
-                if (j < i || char.ToLowerInvariant(candidate[j]) != queryChar)
+                if (j < i || _foldedCandidate[j] != queryChar)
                 {
                     _current[j] = NoMatch;
                     continue;
@@ -218,7 +275,11 @@ public sealed class FuzzyMatcher
 
                 int bonus = i == 0 ? _bonus[j] * FirstCharBonusMultiplier : _bonus[j];
                 _current[j] = predecessor + ScoreMatch + bonus;
-                _parents[(i * MaxCandidateLength) + j] = parent;
+
+                if (trace)
+                {
+                    _parents[(i * MaxCandidateLength) + j] = parent;
+                }
 
                 if (i == n - 1 && _current[j] > bestScore)
                 {
@@ -236,7 +297,7 @@ public sealed class FuzzyMatcher
         }
 
         score = bestScore;
-        highlights = Trace(n, bestEnd);
+        highlights = trace ? Trace(n, bestEnd) : [];
         return true;
     }
 
@@ -252,6 +313,7 @@ public sealed class FuzzyMatcher
         for (int j = 0; j < candidate.Length; j++)
         {
             char c = candidate[j];
+            _foldedCandidate[j] = char.ToLowerInvariant(c);
 
             if (j == 0)
             {

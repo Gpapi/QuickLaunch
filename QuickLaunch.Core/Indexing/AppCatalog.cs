@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
+using QuickLaunch.Core.Abstractions;
 using QuickLaunch.Core.Matching;
 
 namespace QuickLaunch.Core.Indexing;
@@ -38,7 +39,7 @@ public sealed record AppEntry(string Name, string LaunchId, string? FilePath)
 /// unpackaged apps a single launch identity and a single icon path — which is also why
 /// there is no .lnk parsing here.
 /// </remarks>
-public sealed class AppCatalog
+public sealed class AppCatalog : ISearchIndex
 {
     private volatile IReadOnlyList<AppEntry> _entries = [];
 

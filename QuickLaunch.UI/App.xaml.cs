@@ -57,7 +57,11 @@ public partial class App : Application
         services.AddSingleton<TrayIconService>();
 
         services.AddSingleton<AppCatalog>();
+        services.AddSingleton(new FileIndexOptions());
+        services.AddSingleton<FileIndexService>();
+
         services.AddSingleton<ISearchProvider, AppSearchProvider>();
+        services.AddSingleton<ISearchProvider, FileSearchProvider>();
         services.AddSingleton<SearchOrchestrator>();
         services.AddSingleton<IconService>();
 
@@ -87,19 +91,22 @@ public partial class App : Application
 
     private void StartSearch()
     {
+        var catalog = Services.GetRequiredService<AppCatalog>();
+        var files = Services.GetRequiredService<FileIndexService>();
+
         _search = new SearchCoordinator(
             _window!.ViewModel,
             Services.GetRequiredService<SearchOrchestrator>(),
-            Services.GetRequiredService<AppCatalog>(),
+            [catalog, files],
             Services.GetRequiredService<IconService>(),
             _window.DispatcherQueue);
 
         _search.Start();
 
-        // Enumerating installed applications takes a moment and touches the shell, so it
-        // happens off the UI thread. The catalog announces itself when it is ready.
-        var catalog = Services.GetRequiredService<AppCatalog>();
+        // Both sources touch the disk and the shell, so neither is built on the UI thread.
+        // Each announces itself when it is ready and the current query is re-run.
         _ = Task.Run(catalog.Refresh);
+        _ = Task.Run(files.Start);
     }
 
     private void RegisterHotKeys()

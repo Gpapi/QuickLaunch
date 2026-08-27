@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.UI.Dispatching;
 using QuickLaunch.Core.Abstractions;
-using QuickLaunch.Core.Indexing;
 using QuickLaunch.Core.Search;
 using QuickLaunch.UI.ViewModels;
 
@@ -21,7 +20,7 @@ namespace QuickLaunch.UI.Services;
 internal sealed class SearchCoordinator(
     MainViewModel viewModel,
     SearchOrchestrator orchestrator,
-    AppCatalog catalog,
+    IReadOnlyList<ISearchIndex> indexes,
     IconService icons,
     DispatcherQueue dispatcher)
 {
@@ -46,10 +45,13 @@ internal sealed class SearchCoordinator(
         // indistinguishable from a query that matched nothing.
         orchestrator.SearchFailed += (_, exception) => CrashLog.Write(exception);
 
-        // The catalog is still loading when the launcher first appears. Re-running the
-        // current query once it lands means an early search fills in rather than
+        // The indexes are still building when the launcher first appears. Re-running the
+        // current query as each one lands means an early search fills in rather than
         // stranding the user on an empty list.
-        catalog.Updated += (_, _) => dispatcher.TryEnqueue(() => orchestrator.Search(viewModel.QueryText));
+        foreach (var index in indexes)
+        {
+            index.Updated += (_, _) => dispatcher.TryEnqueue(() => orchestrator.Search(viewModel.QueryText));
+        }
     }
 
     private void Show(IReadOnlyList<SearchResult> results)

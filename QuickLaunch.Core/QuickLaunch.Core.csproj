@@ -16,4 +16,10 @@
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- The index is constructed from raw arrays only by its builder and its snapshot
+         reader. Tests need the same door to stand up synthetic indexes for benchmarks. -->
+    <InternalsVisibleTo Include="QuickLaunch.Tests" />
+  </ItemGroup>
+
 </Project>
