@@ -28,12 +28,25 @@ public sealed class FileIndexService(FileIndexOptions? options = null) : ISearch
     /// </summary>
     private static readonly TimeSpan MinimumRebuildInterval = TimeSpan.FromMinutes(5);
 
+    /// <summary>
+    /// How long a pending change may wait for quiet before the rebuild happens anyway.
+    /// </summary>
+    /// <remarks>
+    /// A ceiling is what makes the quiet period safe. Waiting only for silence means a
+    /// machine that is never silent never rebuilds, and the index stays as it was at
+    /// startup — which is not "eventually fresh", it is "never fresh".
+    /// </remarks>
+    private static readonly TimeSpan MaximumStaleness = TimeSpan.FromMinutes(10);
+
     private readonly FileIndexOptions _options = options ?? new FileIndexOptions();
     private readonly List<FileSystemWatcher> _watchers = [];
     private readonly Lock _gate = new();
 
+    private readonly CancellationTokenSource _shutdown = new();
+
     private Timer? _rebuildTimer;
     private DateTimeOffset _lastRebuild = DateTimeOffset.MinValue;
+    private DateTimeOffset? _oldestPendingChange;
     private volatile FileIndex _index = FileIndex.Empty;
     private volatile bool _rebuilding;
     private bool _disposed;
@@ -43,6 +56,13 @@ public sealed class FileIndexService(FileIndexOptions? options = null) : ISearch
 
     /// <summary>Raised after the index is replaced.</summary>
     public event EventHandler? Updated;
+
+    /// <summary>
+    /// Raised when a rebuild fails. Rebuilds run on a timer callback with nothing awaiting
+    /// them, so without this an unexpected exception would take the process down with
+    /// nothing recorded anywhere.
+    /// </summary>
+    public event EventHandler<Exception>? Failed;
 
     /// <summary>
     /// Brings the index up as fast as possible: the cached snapshot first so queries work
@@ -66,10 +86,14 @@ public sealed class FileIndexService(FileIndexOptions? options = null) : ISearch
         {
             if (_rebuilding)
             {
+                // Changes that arrive mid-walk would otherwise be dropped: the timer has
+                // already fired and nothing would re-arm it.
+                ScheduleRebuildCore(QuietPeriod);
                 return;
             }
 
             _rebuilding = true;
+            _oldestPendingChange = null;
         }
 
         try
@@ -89,6 +113,13 @@ public sealed class FileIndexService(FileIndexOptions? options = null) : ISearch
         catch (OperationCanceledException)
         {
             // Shutting down.
+        }
+        catch (Exception exception)
+        {
+            // The walker handles the I/O failures it expects, but a path can raise things
+            // it does not. This runs on a thread-pool thread with no continuation, so an
+            // escape here terminates the process silently.
+            Failed?.Invoke(this, exception);
         }
         finally
         {
@@ -144,7 +175,18 @@ public sealed class FileIndexService(FileIndexOptions? options = null) : ISearch
         }
     }
 
-    private void OnFileSystemChanged(object sender, FileSystemEventArgs e) => ScheduleRebuild();
+    private void OnFileSystemChanged(object sender, FileSystemEventArgs e)
+    {
+        // Most events cannot possibly change the index — ProgramData, Windows and AppData
+        // churn constantly and are all excluded from the walk. Reacting to them resets the
+        // quiet period for work that could never alter the result.
+        if (!_options.CouldContain(e.FullPath))
+        {
+            return;
+        }
+
+        ScheduleRebuild();
+    }
 
     /// <summary>
     /// Restarts the quiet-period countdown. Bursts of activity therefore cost one rebuild
@@ -154,22 +196,49 @@ public sealed class FileIndexService(FileIndexOptions? options = null) : ISearch
     {
         lock (_gate)
         {
-            if (_disposed)
-            {
-                return;
-            }
-
-            var earliest = _lastRebuild + MinimumRebuildInterval;
-            var delay = QuietPeriod;
-
-            if (DateTimeOffset.UtcNow + delay < earliest)
-            {
-                delay = earliest - DateTimeOffset.UtcNow;
-            }
-
-            _rebuildTimer ??= new Timer(_ => Rebuild(CancellationToken.None));
-            _rebuildTimer.Change(delay, Timeout.InfiniteTimeSpan);
+            _oldestPendingChange ??= DateTimeOffset.UtcNow;
+            ScheduleRebuildCore(QuietPeriod);
         }
+    }
+
+    /// <summary>Sets the timer, honouring both the rebuild floor and the staleness ceiling.</summary>
+    private void ScheduleRebuildCore(TimeSpan preferredDelay)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var delay = preferredDelay;
+
+        // Never rebuild more often than the floor allows.
+        var earliest = _lastRebuild + MinimumRebuildInterval;
+
+        if (now + delay < earliest)
+        {
+            delay = earliest - now;
+        }
+
+        // ...but never let a pending change wait longer than the ceiling, however busy the
+        // disk is. The floor still applies, so this cannot cause back-to-back walks.
+        if (_oldestPendingChange is { } pending)
+        {
+            var deadline = pending + MaximumStaleness;
+
+            if (now + delay > deadline)
+            {
+                delay = deadline > now ? deadline - now : TimeSpan.Zero;
+
+                if (now + delay < earliest)
+                {
+                    delay = earliest - now;
+                }
+            }
+        }
+
+        _rebuildTimer ??= new Timer(_ => Rebuild(_shutdown.Token));
+        _rebuildTimer.Change(delay, Timeout.InfiniteTimeSpan);
     }
 
     public void Dispose()
@@ -193,5 +262,10 @@ public sealed class FileIndexService(FileIndexOptions? options = null) : ISearch
         _watchers.Clear();
         _rebuildTimer?.Dispose();
         _rebuildTimer = null;
+
+        // A walk in progress would otherwise hold the process open to finish, and then
+        // write a snapshot from a service that is already torn down.
+        _shutdown.Cancel();
+        _shutdown.Dispose();
     }
 }

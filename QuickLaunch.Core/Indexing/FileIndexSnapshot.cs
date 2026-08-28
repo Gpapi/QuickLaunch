@@ -53,6 +53,22 @@ public static class FileIndexSnapshot
         }
     }
 
+    /// <summary>
+    /// Removes a snapshot that could not be read, so the next launch starts clean instead
+    /// of failing the same way forever.
+    /// </summary>
+    private static void Discard(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // Nothing more to be done; the walk still produces a working index.
+        }
+    }
+
     /// <summary>Reads a previously saved index, or null if there is not a usable one.</summary>
     public static FileIndex? TryLoad(string path)
     {
@@ -97,12 +113,16 @@ public static class FileIndexSnapshot
 
             return new FileIndex(names, parents, directories);
         }
-        catch (Exception exception) when (exception is IOException
-                                              or UnauthorizedAccessException
-                                              or EndOfStreamException
-                                              or OutOfMemoryException)
+        catch (Exception)
         {
-            // A truncated or corrupt cache just means a full walk instead.
+            // Deliberately everything. A cache is an optimisation and is never worth an
+            // exception: this runs on a detached task, so anything escaping here disables
+            // file search for the life of the process, with no crash and no log — and the
+            // bad file would still be sitting there to do it again on the next launch.
+            // BinaryReader alone can raise FormatException from a malformed length prefix,
+            // EndOfStreamException from truncation, and OutOfMemoryException from a
+            // plausible-looking but absurd count.
+            Discard(path);
             return null;
         }
     }

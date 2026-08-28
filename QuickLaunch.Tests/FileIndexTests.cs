@@ -98,6 +98,24 @@ public class FileIndexTests(ITestOutputHelper output) : IDisposable
     }
 
     [Fact]
+    public void Options_reject_paths_the_walker_would_never_index()
+    {
+        // What the watchers use to decide an event is worth reacting to. It has to agree
+        // with the walker, or the quiet period is reset by churn that cannot change
+        // anything — which is most of the churn on a Windows machine.
+        var options = new FileIndexOptions();
+
+        Assert.False(options.CouldContain(@"C:\Windows\System32\drivers\etc\hosts"));
+        Assert.False(options.CouldContain(@"C:\ProgramData\Microsoft\Windows\whatever.tmp"));
+        Assert.False(options.CouldContain(@"C:\Users\someone\.cargo\registry\a.rs"));
+        Assert.False(options.CouldContain(@"C:\src\app\node_modules\left-pad\index.js"));
+        Assert.False(options.CouldContain(@"C:\src\app\obj\Debug\app.dll"));
+
+        Assert.True(options.CouldContain(@"C:\GitProjects\QuickLaunch\README.md"));
+        Assert.True(options.CouldContain(@"C:\Users\someone\Documents\report.docx"));
+    }
+
+    [Fact]
     public void Search_finds_a_file_by_an_abbreviation_of_its_name()
     {
         var index = Tree;
@@ -145,6 +163,31 @@ public class FileIndexTests(ITestOutputHelper output) : IDisposable
         Directory.CreateDirectory(_root);
         string path = Path.Combine(_root, "corrupt.bin");
         File.WriteAllBytes(path, [1, 2, 3, 4, 5, 6, 7, 8]);
+
+        Assert.Null(FileIndexSnapshot.TryLoad(path));
+    }
+
+    [Theory]
+    [InlineData("a length prefix that never terminates", new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF })]
+    [InlineData("a name that is cut off mid-string", new byte[] { 0x40, 0x41, 0x42 })]
+    [InlineData("nothing at all after the header", new byte[0])]
+    public void A_snapshot_with_a_valid_header_and_a_broken_body_is_rejected(string _, byte[] body)
+    {
+        // The header can be perfectly good and the rest still garbage. Every way that can
+        // go wrong has to end in "ignore the cache and rebuild", never in an exception:
+        // the load runs on a discarded task, so anything thrown there disables file search
+        // for the life of the process and silently repeats on every launch.
+        Directory.CreateDirectory(_root);
+        string path = Path.Combine(_root, "broken.bin");
+
+        using (var stream = File.Create(path))
+        using (var writer = new BinaryWriter(stream))
+        {
+            writer.Write(0x58494C51u);   // magic
+            writer.Write(1);             // version
+            writer.Write(4);             // entry count
+            writer.Write(body);
+        }
 
         Assert.Null(FileIndexSnapshot.TryLoad(path));
     }

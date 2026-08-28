@@ -27,6 +27,53 @@ public sealed record FileIndexOptions
     /// </remarks>
     public IReadOnlySet<string> ExcludedPaths { get; init; } = DefaultExcludedPaths();
 
+    /// <summary>
+    /// Whether a path could ever appear in the index.
+    /// </summary>
+    /// <remarks>
+    /// Used to decide whether a file system event is worth reacting to. Without this the
+    /// watchers reset their countdown for churn under Windows, ProgramData and AppData —
+    /// none of which the walker would ever index, so the work could not change the result.
+    /// </remarks>
+    public bool CouldContain(string path)
+    {
+        if (string.IsNullOrEmpty(path))
+        {
+            return false;
+        }
+
+        foreach (string excluded in ExcludedPaths)
+        {
+            if (path.StartsWith(excluded, StringComparison.OrdinalIgnoreCase)
+                && (path.Length == excluded.Length || path[excluded.Length] == Path.DirectorySeparatorChar))
+            {
+                return false;
+            }
+        }
+
+        // Every directory on the way down, and the entry itself; the leaf is checked too
+        // because a file inside an excluded folder is what most events are.
+        foreach (var segment in path.AsSpan().EnumerateDirectorySeparatedSegments())
+        {
+            if (segment.Length == 0)
+            {
+                continue;
+            }
+
+            if (ExcludeDotFolders && segment[0] == '.')
+            {
+                return false;
+            }
+
+            if (ExcludedFolderNames.Contains(segment.ToString()))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private static List<string> FixedDriveRoots()
     {
         var roots = new List<string>();

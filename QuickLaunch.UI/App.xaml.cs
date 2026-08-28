@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
@@ -106,10 +107,28 @@ public partial class App : Application
 
         _search.Start();
 
+        files.Failed += (_, exception) => CrashLog.Write(exception);
+
         // Both sources touch the disk and the shell, so neither is built on the UI thread.
         // Each announces itself when it is ready and the current query is re-run.
-        _ = Task.Run(catalog.Refresh);
-        _ = Task.Run(files.Start);
+        RunInBackground(catalog.Refresh, nameof(AppCatalog));
+        RunInBackground(files.Start, nameof(FileIndexService));
+    }
+
+    /// <summary>
+    /// Starts background work and makes sure a failure in it is recorded.
+    /// </summary>
+    /// <remarks>
+    /// A discarded task swallows whatever it throws. That is how a corrupt index cache
+    /// managed to disable file search with no crash, no log and no way to tell.
+    /// </remarks>
+    private static void RunInBackground(Action work, string name)
+    {
+        _ = Task.Run(work).ContinueWith(
+            task => CrashLog.Write(new InvalidOperationException($"{name} failed to start.", task.Exception)),
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted,
+            TaskScheduler.Default);
     }
 
     private void RegisterHotKeys()

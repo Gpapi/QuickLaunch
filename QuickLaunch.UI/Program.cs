@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using QuickLaunch.UI.Services;
@@ -26,6 +27,8 @@ public static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        RecordUnhandledFailures();
+
         using var gate = new SingleInstanceGate("QuickLaunch");
 
         if (!gate.IsFirstInstance)
@@ -47,6 +50,32 @@ public static class Program
 
             _ = new App(gate, startHidden, autoHide);
         });
+    }
+
+    /// <summary>
+    /// Catches the failures that never reach Application.UnhandledException.
+    /// </summary>
+    /// <remarks>
+    /// The app does most of its work on background threads — index walks, catalogue
+    /// refreshes, timer callbacks. An exception on one of those does not go through the
+    /// XAML handler: it either terminates the process with nothing written down, or, for a
+    /// task nobody awaits, disappears entirely. Both channels are worth a line in the log.
+    /// </remarks>
+    private static void RecordUnhandledFailures()
+    {
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            if (e.ExceptionObject is Exception exception)
+            {
+                CrashLog.Write(exception);
+            }
+        };
+
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+        {
+            CrashLog.Write(e.Exception);
+            e.SetObserved();
+        };
     }
 
     private static bool HasSwitch(string[] args, string name) =>

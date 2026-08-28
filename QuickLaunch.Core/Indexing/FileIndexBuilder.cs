@@ -48,13 +48,19 @@ public static class FileIndexBuilder
         CancellationToken cancellationToken)
     {
         // Skipping hidden and system entries keeps AppData, .git and $Recycle.Bin out
-        // without naming them. Reparse points are skipped so junctions and OneDrive
-        // placeholders are not walked twice or followed into a loop.
+        // without naming them.
+        //
+        // Reparse points are deliberately NOT skipped here. With OneDrive Files On-Demand —
+        // on by default, and Windows 11 turns on Known Folder Backup out of the box — every
+        // file under a synced Desktop, Documents or Pictures is a cloud placeholder carrying
+        // the reparse attribute. Skipping the attribute wholesale would drop the contents of
+        // exactly the folders people search most. Reparse *directories* are still skipped
+        // below, since that is where junction and symlink loops live.
         var enumeration = new EnumerationOptions
         {
             IgnoreInaccessible = true,
             RecurseSubdirectories = false,
-            AttributesToSkip = FileAttributes.Hidden | FileAttributes.System | FileAttributes.ReparsePoint,
+            AttributesToSkip = FileAttributes.Hidden | FileAttributes.System,
         };
 
         var pending = new Stack<(string Path, int Index, int Depth)>();
@@ -86,7 +92,15 @@ public static class FileIndexBuilder
                     return;
                 }
 
-                bool isDirectory = (entry.Attributes & FileAttributes.Directory) != 0;
+                var attributes = entry.Attributes;
+                bool isDirectory = (attributes & FileAttributes.Directory) != 0;
+
+                // A junction or directory symlink points at a tree that is either indexed
+                // elsewhere or loops back here.
+                if (isDirectory && (attributes & FileAttributes.ReparsePoint) != 0)
+                {
+                    continue;
+                }
 
                 if (isDirectory && IsExcludedFolder(entry, options))
                 {
