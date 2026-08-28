@@ -1,0 +1,26 @@
+name: build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build
+        run: dotnet build QuickLaunch.slnx -c Release -p:Platform=x64
+
+      # Tests marked Machine need this developer's installed applications, their disks,
+      # or a quiet CPU to measure against a wall clock. A build agent has none of those,
+      # so running them there would report on the agent rather than on the code.
+      - name: Test
+        run: dotnet test QuickLaunch.Tests/QuickLaunch.Tests.csproj -c Release -p:Platform=x64 --filter "Category!=Machine" --logger "console;verbosity=normal"
