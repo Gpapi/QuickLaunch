@@ -15,6 +15,7 @@ namespace QuickLaunch.Tests;
 /// <summary>
 /// End-to-end through the search stack: real catalog, real provider, real orchestrator.
 /// </summary>
+[Trait("Category", "Machine")]
 public class SearchTests(ITestOutputHelper output)
 {
     /// <summary>Runs a query and waits for the orchestrator to settle.</summary>
@@ -183,17 +184,19 @@ public class SearchTests(ITestOutputHelper output)
             return;
         }
 
+        var before = Calculators().Select(p => p.Id).ToHashSet();
+
         Assert.True(
             ResultLauncher.TryLaunch(new LaunchTarget(calculator.ShellPath), out string? error),
             $"the shell refused {calculator.ShellPath}: {error}");
 
         Assert.Null(error);
 
-        // Started for the test, so close it again rather than leaving it on screen.
+        // Close what this test started — and only that. Killing by name would also close
+        // a calculator the person running the tests had open.
         Thread.Sleep(2000);
 
-        foreach (var process in System.Diagnostics.Process.GetProcessesByName("CalculatorApp")
-                     .Concat(System.Diagnostics.Process.GetProcessesByName("Calculator")))
+        foreach (var process in Calculators().Where(p => !before.Contains(p.Id)))
         {
             try
             {
@@ -206,11 +209,16 @@ public class SearchTests(ITestOutputHelper output)
         }
     }
 
+    private static System.Diagnostics.Process[] Calculators() =>
+    [
+        .. System.Diagnostics.Process.GetProcessesByName("CalculatorApp"),
+        .. System.Diagnostics.Process.GetProcessesByName("Calculator"),
+    ];
+
     [Fact]
     public void The_shell_reports_a_target_that_cannot_be_launched()
     {
-        Assert.False(ResultLauncher.TryLaunch(new LaunchTarget(@"C:
-o\such\program.exe"), out string? error));
+        Assert.False(ResultLauncher.TryLaunch(new LaunchTarget(@"C:\no\such\program.exe"), out string? error));
         Assert.NotNull(error);
     }
 

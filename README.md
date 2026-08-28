@@ -1,5 +1,7 @@
 # QuickLaunch
 
+[![build](https://github.com/Gpapi/QuickLaunch/actions/workflows/build.yml/badge.svg)](https://github.com/Gpapi/QuickLaunch/actions/workflows/build.yml)
+
 A Spotlight-style launcher for Windows. Press the hotkey, type a few characters, press Enter.
 
 ![QuickLaunch searching for "code"](docs/screenshot.png)
@@ -79,6 +81,19 @@ What is left out: `Windows`, `Program Files`, `Program Files (x86)` and `Program
 The last two matter more than they sound. Windows marks its own machinery hidden but cross-platform tools do not, so `.vscode`, `.cargo` and `.rustup` otherwise bury real results under package caches. And on a machine with source on it, `bin` and `obj` hold a compiled copy of everything, competing with the source files for the top rows. Both rules match by name at any depth, so a folder genuinely called `bin` is excluded too — a deliberate trade, and `FileIndexOptions.ExcludedFolderNames` is where to change it.
 
 Together they take the index here from ~190,000 entries to ~129,000, and the walk to about 2 seconds.
+
+## Privacy
+
+Everything stays on your machine. The launcher makes no network requests of its own — the only thing that ever leaves is a web search you explicitly choose, which opens in your browser.
+
+Two files are written, both under `%LOCALAPPDATA%\QuickLaunch`:
+
+- `index.bin` — the file index: the name of every indexed file and folder on your fixed drives, and how they nest. It is a listing of your drives in plain form. Delete it any time; it is rebuilt on the next start.
+- `crash.log` — unhandled exceptions, when there are any.
+
+## Licence
+
+MIT. See [LICENSE](LICENSE).
 
 ## Layout
 

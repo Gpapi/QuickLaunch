@@ -9,6 +9,7 @@ namespace QuickLaunch.Tests;
 /// Exercises the real shell on the machine running the tests. These assert shape and
 /// plausibility rather than specific applications, which differ per machine.
 /// </summary>
+[Trait("Category", "Machine")]
 public class AppCatalogTests(ITestOutputHelper output)
 {
     private static AppCatalog Loaded()

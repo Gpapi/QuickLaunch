@@ -197,6 +197,7 @@ public class FileIndexTests(ITestOutputHelper output) : IDisposable
         Assert.Null(FileIndexSnapshot.TryLoad(Path.Combine(_root, "does-not-exist.bin")));
 
     [Fact]
+    [Trait("Category", "Machine")]
     public void The_default_configuration_indexes_work_kept_outside_the_user_profile()
     {
         // Regression: the roots used to be the user profile alone, so a projects folder at
@@ -229,6 +230,7 @@ public class FileIndexTests(ITestOutputHelper output) : IDisposable
     private static string ThisFile([System.Runtime.CompilerServices.CallerFilePath] string path = "") => path;
 
     [Fact]
+    [Trait("Category", "Machine")]
     public void Searching_three_hundred_thousand_names_stays_within_budget()
     {
         var index = SyntheticIndex(300_000);
@@ -280,6 +282,7 @@ public class FileIndexTests(ITestOutputHelper output) : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Machine")]
     public void A_cancelled_search_gives_up_promptly()
     {
         var index = SyntheticIndex(300_000);
